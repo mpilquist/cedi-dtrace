@@ -15,13 +15,21 @@
  */
 package com.ccadllc.cedi.dtrace
 
-class Evaluator[A](val exceptionToFailure: Throwable => Option[FailureDetail], val resultToFailure: A => Option[FailureDetail])
+class Evaluator[A](
+  val exceptionToFailure: Throwable => Option[FailureDetail],
+  val resultToFailure: A => Option[FailureDetail]
+)
+
 object Evaluator {
+
   def default[A]: Evaluator[A] = new Evaluator[A](e => Some(FailureDetail(e)), _ => None)
 
   def apply[A](exceptionToFailure: Throwable => Option[FailureDetail], resultToFailure: A => Option[FailureDetail]): Evaluator[A] =
     new Evaluator[A](exceptionToFailure, resultToFailure)
 
-  def exceptionToFailure[A](e2f: Throwable => Option[FailureDetail]): Evaluator[A] = apply(e2f, default[A].resultToFailure)
-  def resultToFailure[A](r2f: A => Option[FailureDetail]): Evaluator[A] = apply(default[A].exceptionToFailure, r2f)
+  def exceptionToFailure[A](e2f: Throwable => Option[FailureDetail]): Evaluator[A] =
+    apply(e2f, default[A].resultToFailure)
+
+  def resultToFailure[A](r2f: A => Option[FailureDetail]): Evaluator[A] =
+    apply(default[A].exceptionToFailure, r2f)
 }

@@ -18,8 +18,13 @@ package com.ccadllc.cedi.dtrace
 import java.io.{ PrintWriter, StringWriter }
 
 sealed abstract class FailureDetail extends Product with Serializable { def render: String }
+
 object FailureDetail {
-  final case class Message(message: String) extends FailureDetail { override def render: String = message }
+
+  final case class Message(message: String) extends FailureDetail {
+    override def render: String = message
+  }
+
   final case class Exception(cause: Throwable) extends FailureDetail {
     override def render: String = {
       val exceptionMessage = new StringWriter
@@ -27,6 +32,8 @@ object FailureDetail {
       exceptionMessage.toString
     }
   }
+
   def apply(m: String): FailureDetail = Message(m)
+
   def apply(e: Throwable): FailureDetail = Exception(e)
 }

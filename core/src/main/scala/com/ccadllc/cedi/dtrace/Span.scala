@@ -32,32 +32,46 @@ case class Span(
     duration: FiniteDuration,
     notes: Vector[Note]
 ) {
+
   def root: Boolean = spanId.root
-  private[dtrace] def newChild[F[_]](spanName: Span.Name)(implicit F: Async[F]): F[Span] = for {
+
+  private[dtrace] def newChild[F[_]: Suspendable](spanName: Span.Name): F[Span] = for {
     startTime <- Span.nowInstant
     child <- spanId.newChild
   } yield Span(child, spanName, startTime, None, Duration.Zero, Vector.empty)
-  private[dtrace] def setNotes(notes: Vector[Note]): Span = copy(notes = notes)
-  private[dtrace] def updateStartTime[F[_]: Async]: F[Span] = Span.nowInstant map { t => copy(startTime = t) }
-  private[dtrace] def finishSuccess[F[_]: Async]: F[Span] = finish(None)
-  private[dtrace] def finishFailure[F[_]: Async](detail: FailureDetail): F[Span] = finish(Some(detail))
+
+  private[dtrace] def setNotes(notes: Vector[Note]): Span =
+    copy(notes = notes)
+
+  private[dtrace] def updateStartTime[F[_]: Suspendable]: F[Span] =
+    Span.nowInstant map { t => copy(startTime = t) }
+
+  private[dtrace] def finishSuccess[F[_]: Suspendable]: F[Span] =
+    finish(None)
+
+  private[dtrace] def finishFailure[F[_]: Suspendable](detail: FailureDetail): F[Span] =
+    finish(Some(detail))
+
+  private def finish[F[_]: Suspendable](failure: Option[FailureDetail]): F[Span] =
+    Span.nowInstant map { endTime =>
+      copy(failure = failure, duration = FiniteDuration(ChronoUnit.MICROS.between(startTime, endTime), MICROSECONDS))
+    }
+
   override def toString: String =
     s"[span-id=$spanId] [span-name=$spanName] [start-time=$startTime] [span-success=${failure.isEmpty}] [failure-detail=${failure.fold("N/A")(_.render)}] [span-duration=$duration] [notes=[${notes.mkString("] [")}]"
-  private def finish[F[_]](failure: Option[FailureDetail])(implicit F: Async[F]): F[Span] =
-    Span.nowInstant map { endTime => copy(failure = failure, duration = FiniteDuration(ChronoUnit.MICROS.between(startTime, endTime), MICROSECONDS)) }
 }
 
 object Span {
   case class Name(value: String) { override def toString: String = value }
 
-  def root[F[_]: Async](spanName: Name, notes: Note*): F[Span] = SpanId.root flatMap { newSpan(_, spanName, notes: _*) }
+  def root[F[_]: Suspendable](spanName: Name, notes: Note*): F[Span] = SpanId.root flatMap { newSpan(_, spanName, notes: _*) }
 
-  def newChild[F[_]: Async](spanId: SpanId, spanName: Name, notes: Note*): F[Span] = spanId.newChild flatMap { newSpan(_, spanName, notes: _*) }
+  def newChild[F[_]: Suspendable](spanId: SpanId, spanName: Name, notes: Note*): F[Span] = spanId.newChild flatMap { newSpan(_, spanName, notes: _*) }
 
   private[dtrace] val empty: Span = Span(SpanId.empty, Span.Name("empty"), Instant.EPOCH, None, 0.seconds, Vector.empty)
 
-  private def nowInstant[F[_]](implicit F: Async[F]): F[Instant] = F.delay(Instant.now)
+  private def nowInstant[F[_]](implicit F: Suspendable[F]): F[Instant] = F.delay(Instant.now)
 
-  private def newSpan[F[_]](spanId: SpanId, spanName: Span.Name, notes: Note*)(implicit F: Async[F]): F[Span] =
+  private def newSpan[F[_]: Suspendable](spanId: SpanId, spanName: Span.Name, notes: Note*): F[Span] =
     nowInstant map { Span(spanId, spanName, _, None, Duration.Zero, notes.toVector) }
 }

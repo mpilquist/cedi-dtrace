@@ -23,7 +23,7 @@ import io.circe.syntax._
 object json {
   object encoding {
     // format: OFF
-    implicit val traceContextEncoderJson: Encoder[TraceContext] = Encoder.instance { tc =>
+    implicit def traceContextEncoderJson[F[_]]: Encoder[TraceContext[F]] = Encoder.instance { tc =>
       Json.obj(
         "where"        -> Json.obj(
           "appId"           -> tc.system.identity.app.id.toString.asJson,

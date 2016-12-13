@@ -15,36 +15,43 @@
  */
 package com.ccadllc.cedi.dtrace
 
-import fs2.util.Async
+import fs2.util.Applicative
 
 import java.util.UUID
 
 import scala.language.higherKinds
 
-case class TraceSystem(identity: TraceSystem.Identity, emitter: TraceSystem.Emitter) {
+case class TraceSystem[F[_]](identity: TraceSystem.Identity, emitter: TraceSystem.Emitter[F]) {
   override def toString: String = s"[emitter=$identity] [emitter=${emitter.description}]"
 }
+
 object TraceSystem {
+
   case class Identity(app: Identity.Application, node: Identity.Node, process: Identity.Process, deployment: Identity.Deployment, environment: Identity.Environment) {
     override def toString: String = s"[app=${app.name}] [node=${node.name}] [process=${process.id}] [deployment=${deployment.name}] [environment=${environment.name}]"
   }
+
   object Identity {
-    case class Application(name: String, id: UUID)
-    case class Node(name: String, id: UUID)
-    case class Process(id: UUID)
-    case class Deployment(name: String)
-    case class Environment(name: String)
+    final case class Application(name: String, id: UUID)
+    final case class Node(name: String, id: UUID)
+    final case class Process(id: UUID)
+    final case class Deployment(name: String)
+    final case class Environment(name: String)
   }
-  trait Emitter {
-    def emit[F[_]: Async](tc: TraceContext): F[Unit]
+
+  trait Emitter[F[_]] {
+    def emit(tc: TraceContext[F]): F[Unit]
     def description: String
   }
-  import Identity._
-  private[dtrace] val empty: TraceSystem = TraceSystem(
-    Identity(Application("", UUID.randomUUID), Node("", UUID.randomUUID), Process(UUID.randomUUID), Deployment(""), Environment("")),
-    new Emitter {
-      override def emit[F[_]](tc: TraceContext)(implicit F: Async[F]): F[Unit] = F.pure(())
-      override val description: String = "Empty Emitter"
-    }
-  )
+
+  private[dtrace] def empty[F[_]](implicit F: Applicative[F]): TraceSystem[F] = {
+    import Identity._
+    TraceSystem[F](
+      Identity(Application("", UUID.randomUUID), Node("", UUID.randomUUID), Process(UUID.randomUUID), Deployment(""), Environment("")),
+      new Emitter[F] {
+        override def emit(tc: TraceContext[F]): F[Unit] = F.pure(())
+        override val description: String = "Empty Emitter"
+      }
+    )
+  }
 }

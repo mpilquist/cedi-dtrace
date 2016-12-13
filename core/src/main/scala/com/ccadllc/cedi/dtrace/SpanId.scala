@@ -21,16 +21,16 @@ import scala.language.higherKinds
 import scala.util.{ Random, Try }
 import scala.util.matching.Regex
 
-import fs2.util.Async
+import fs2.util.Suspendable
 import fs2.util.syntax._
 
-case class SpanId(traceId: UUID, parentSpanId: Long, spanId: Long) {
+final case class SpanId(traceId: UUID, parentSpanId: Long, spanId: Long) {
 
   def root: Boolean = parentSpanId == spanId
 
   val toHeader: String = s"${SpanId.TraceIdHeader}=$traceId;${SpanId.ParentIdHeader}=$parentSpanId;${SpanId.SpanIdHeader}=$spanId"
 
-  def newChild[F[_]: Async]: F[SpanId] = SpanId.nextSpanIdValue map { newSpanId => copy(parentSpanId = spanId, spanId = newSpanId) }
+  def newChild[F[_]: Suspendable]: F[SpanId] = SpanId.nextSpanIdValue map { newSpanId => copy(parentSpanId = spanId, spanId = newSpanId) }
 
   override def toString: String = s"SpanId~$traceId~$parentSpanId~$spanId"
 }
@@ -42,7 +42,7 @@ object SpanId {
   final val SpanIdHeader: String = "span-id"
   final val HeaderRegex: Regex = s"$TraceIdHeader=([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-fA-F]{12});$ParentIdHeader=([\\-0-9]+);$SpanIdHeader=([\\-0-9]+)".r
 
-  def root[F[_]](implicit F: Async[F]): F[SpanId] = for {
+  def root[F[_]](implicit F: Suspendable[F]): F[SpanId] = for {
     traceId <- F.delay(UUID.randomUUID)
     parentChildId <- nextSpanIdValue
   } yield SpanId(traceId, parentChildId, parentChildId)
@@ -55,7 +55,7 @@ object SpanId {
     case _ => None
   }
 
-  private[dtrace] def nextSpanIdValue[F[_]](implicit F: Async[F]): F[Long] = F.delay(Random.nextLong)
+  private[dtrace] def nextSpanIdValue[F[_]](implicit F: Suspendable[F]): F[Long] = F.delay(Random.nextLong)
 
   private[dtrace] val empty: SpanId = SpanId(UUID.randomUUID, 0L, 0L)
 }
